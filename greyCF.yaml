@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template for creating an S3 bucket with encryption options
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Enter a unique name for the S3 bucket
+    ConstraintDescription: Must be a unique bucket name
+  EncryptionType:
+    Type: String
+    Description: Select the encryption type for the S3 bucket
+    Default: SSE-S3
+    AllowedValues:
+      - SSE-S3
+      - KMS
+
+Conditions:
+  IsKMS: !Equals [!Ref EncryptionType, KMS]
+  IsSSES3: !Equals [!Ref EncryptionType, SSE-S3]
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: !If
+                - IsSSES3
+                - AES256
+                - !Ref KMSKey
+      Tags:
+        - Key: Name
+          Value: !Ref BucketName
+
+  KMSKey:
+    Type: AWS::KMS::Key
+    Condition: IsKMS
+    Properties:
+      Description: KMS Key for S3 bucket encryption
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Allow administration of the key
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action:
+              - kms:*
+            Resource: '*'
+
+Outputs:
+  S3BucketName:
+    Description: The name of the created S3 bucket
+    Value: !Ref BucketName
+    Export:
+      Name: !Sub ${AWS::StackName}-S3BucketName
+  EncryptionTypeOutput:
+    Description: The encryption type of the S3 bucket
+    Value: !Ref EncryptionType
+    Export:
+      Name: !Sub ${AWS::StackName}-EncryptionType
